@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>36307A92-F5AD-473D-8293-7DC570AC6D74</string>
+	<key>IDESourceControlProjectName</key>
+	<string>example</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>9C3370D4-7CB1-45CD-8303-4738E7DD7785</key>
+		<string>https://github.com/MovementAndMeaning/Exploration.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>dhruv/RecognitionOF/addons/ofxPostProcessing/example/example.xcodeproj/project.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>9C3370D4-7CB1-45CD-8303-4738E7DD7785</key>
+		<string>../../../../../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/MovementAndMeaning/Exploration.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>9C3370D4-7CB1-45CD-8303-4738E7DD7785</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>9C3370D4-7CB1-45CD-8303-4738E7DD7785</string>
+			<key>IDESourceControlWCCName</key>
+			<string>Exploration</string>
+		</dict>
+	</array>
+</dict>
+</plist>
