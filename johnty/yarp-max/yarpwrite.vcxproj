@@ -13,7 +13,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{73069FC3-D989-47DB-B15F-625703EED4DA}</ProjectGuid>
     <RootNamespace>yarpwrite</RootNamespace>
-    <ProjectName>yarpwrite</ProjectName>
+    <ProjectName>yarp</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -162,11 +162,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="yarpwrite.cpp" />
+    <ClCompile Include="yarp.cpp" />
     <ClCompile Include="..\..\c74support\max-includes\common\commonsyms.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="yarpwrite.def" />
+    <None Include="yarp.def" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

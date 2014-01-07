@@ -18,12 +18,12 @@
     <ClCompile Include="..\..\c74support\max-includes\common\commonsyms.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="yarpwrite.cpp">
+    <ClCompile Include="yarp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="yarpwrite.def">
+    <None Include="yarp.def">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

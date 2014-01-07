@@ -1,6 +1,7 @@
 /**
 	@file
-	yarpwrite - yarpwrite numbers and operate on them.
+	yarp - yarp
+			- based on collect example: collectsnumbers and operate on them.
 			- demonstrates use of C++ and the STL in a Max external
 			- also demonstrates use of a mutex for thread safety
 			- on Windows, demonstrate project setup for static linking to the Microsoft Runtime
@@ -9,6 +10,9 @@
 
 	Copyright 2009 - Cycling '74
 	Timothy Place, tim@cycling74.com
+
+	2014 - Hplus
+	Johnty Wang -  johntywang@gmail.com
 */
 
 #include "ext.h"
@@ -63,61 +67,67 @@ typedef numberVector::iterator	numberIterator;
 
 
 // max object instance data
-typedef struct _yarpwrite {
+typedef struct _yarp {
 	t_object			c_box;
 	numberVector		*c_vector;	// note: you must store this as a pointer and not directly as a member of the object's struct
 	void				*c_outlet;
 	t_systhread_mutex	c_mutex;
 	yarp::os::Network *yarp;
 	yarp::os::BufferedPort<yarp::os::Bottle> *port;
-} t_yarpwrite;
+} t_yarp;
 
 
 // prototypes
-void*	yarpwrite_new(t_symbol *s, long argc, t_atom *argv);
-//void*   yarpwrite_new(t_symbol *s);
-void	yarpwrite_free(t_yarpwrite* x);
-void	yarpwrite_assist(t_yarpwrite *x, void *b, long m, long a, char *s);
-void	yarpwrite_bang(t_yarpwrite *x);
-void	yarpwrite_count(t_yarpwrite *x);
-void	yarpwrite_int(t_yarpwrite *x, long value);
-void	yarpwrite_float(t_yarpwrite *x, double value);
-void	yarpwrite_list(t_yarpwrite *x, t_symbol *msg, long argc, t_atom *argv);
-void	yarpwrite_clear(t_yarpwrite *x);
+void*	yarp_new(t_symbol *s, long argc, t_atom *argv);
+//void*   yarp_new(t_symbol *s);
+void	yarp_free(t_yarp* x);
+void	yarp_assist(t_yarp *x, void *b, long m, long a, char *s);
+void	yarp_bang(t_yarp *x);
+void	yarp_count(t_yarp *x);
+void	yarp_int(t_yarp *x, long value);
+void	yarp_float(t_yarp *x, double value);
+void	yarp_list(t_yarp *x, t_symbol *msg, long argc, t_atom *argv);
+void	yarp_clear(t_yarp *x);
+
+void	yarp_read(t_yarp *x, symbol *s);
 
 // yarp init
 
-void init_yarp(t_yarpwrite	*x);
+void init_yarp(t_yarp	*x);
+
+bool	checkAddr(char* addr);
 
 
 // globals
-static t_class	*s_yarpwrite_class = NULL;
+static t_class	*s_yarp_class = NULL;
 
 /************************************************************************************/
 
 int T_EXPORT main(void)
 {
-	t_class	*c = class_new("yarpwrite",
-							(method)yarpwrite_new,
-							(method)yarpwrite_free,
-							sizeof(t_yarpwrite),
+	t_class	*c = class_new("yarp",
+							(method)yarp_new,
+							(method)yarp_free,
+							sizeof(t_yarp),
 							(method)NULL,
 							A_GIMME,
 							0);
 
 	common_symbols_init();
 
-	class_addmethod(c, (method)yarpwrite_bang,	"bang",			0);
-	class_addmethod(c, (method)yarpwrite_int,	"int",			A_LONG,	0);
-	class_addmethod(c, (method)yarpwrite_float,	"float",		A_FLOAT,0);
-	class_addmethod(c, (method)yarpwrite_list,	"list",			A_GIMME,0);
-	class_addmethod(c, (method)yarpwrite_clear,	"clear",		0);
-	class_addmethod(c, (method)yarpwrite_count,	"count",		0);
-	class_addmethod(c, (method)yarpwrite_assist, "assist",		A_CANT, 0);
+	class_addmethod(c, (method)yarp_bang,	"bang",			0);
+	class_addmethod(c, (method)yarp_int,	"int",			A_LONG,	0);
+	class_addmethod(c, (method)yarp_float,	"float",		A_FLOAT,0);
+	class_addmethod(c, (method)yarp_list,	"list",			A_GIMME,0);
+	class_addmethod(c, (method)yarp_clear,	"clear",		0);
+	class_addmethod(c, (method)yarp_count,	"count",		0);
+	class_addmethod(c, (method)yarp_assist, "assist",		A_CANT, 0);
+	class_addmethod(c, (method)yarp_read,   "read",			A_SYM, 0);
+	
 	class_addmethod(c, (method)stdinletinfo,	"inletinfo",	A_CANT, 0);
-
+	
 	class_register(_sym_box, c);
-	s_yarpwrite_class = c;
+	s_yarp_class = c;
 
 	return 0;
 }
@@ -126,50 +136,65 @@ int T_EXPORT main(void)
 /************************************************************************************/
 // Object Creation Method
 
-void *yarpwrite_new(t_symbol *s, long argc, t_atom *argv)
+void *yarp_new(t_symbol *s, long argc, t_atom *argv)
 {
-	poststring("new yarpwrite!\n");
-	t_yarpwrite	*x;
+	poststring("new yarp!\n");
+	char str[32];
+	sprintf(str, "num args=%ld", argc);
+	poststring(str);
+	
+	t_yarp	*x;
 
-	x = (t_yarpwrite*)object_alloc(s_yarpwrite_class);
+	x = (t_yarp*)object_alloc(s_yarp_class);
 	if (x) {
 		systhread_mutex_new(&x->c_mutex, 0);
 		x->c_outlet = outlet_new(x, NULL);
 		x->c_vector = new numberVector;
 		x->c_vector->reserve(10);
-		yarpwrite_list(x, _sym_list, argc, argv);
+		//yarp_list(x, _sym_list, argc, argv);
 	}
 
 	init_yarp(x);
-	x->port->open("/hello_max");
+	if (argc==2) {
+		if (strcmp("read", atom_getsym(argv)->s_name) == 0) {
+			char str[32];
+			sprintf(str, "%s", atom_getsym(argv+1)->s_name);
+			post("reader addr = %s",str);
+			if (checkAddr(str))
+				x->port->open(str);
+		}
+	}
+	else {
+		x->port->open("/hello_max");
+	}
 	return(x);
 }
 
-//void *yarpwrite_new(t_symbol* s) {
-//	poststring("new yarpwrite with parameter!\n");
+//void *yarp_new(t_symbol* s) {
+//	poststring("new yarp with parameter!\n");
 //	poststring(s->s_name);
-//	t_yarpwrite	*x;
+//	t_yarp	*x;
 //
-//	x = (t_yarpwrite*)object_alloc(s_yarpwrite_class);
+//	x = (t_yarp*)object_alloc(s_yarp_class);
 //	if (x) {
 //		systhread_mutex_new(&x->c_mutex, 0);
 //		x->c_outlet = outlet_new(x, NULL);
 //		x->c_vector = new numberVector;
 //		x->c_vector->reserve(10);
-//		//yarpwrite_list(x, _sym_list, argc, argv);
+//		//yarp_list(x, _sym_list, argc, argv);
 //	}
 //	init_yarp(x);
 //	x->port->open(s->s_name);
 //	return(x);
 //}
 
-void init_yarp(t_yarpwrite	*x) {
+void init_yarp(t_yarp	*x) {
 	x->yarp = new yarp::os::Network();
 	x->port = new yarp::os::BufferedPort<yarp::os::Bottle>();
 }
 
 
-void yarpwrite_free(t_yarpwrite *x)
+void yarp_free(t_yarp *x)
 {
 	x->port->close();
 	delete x->port;
@@ -182,7 +207,7 @@ void yarpwrite_free(t_yarpwrite *x)
 /************************************************************************************/
 // Methods bound to input/inlets
 
-void yarpwrite_assist(t_yarpwrite *x, void *b, long msg, long arg, char *dst)
+void yarp_assist(t_yarp *x, void *b, long msg, long arg, char *dst)
 {
 	if (msg==1)
 		strcpy(dst, "input");
@@ -191,7 +216,7 @@ void yarpwrite_assist(t_yarpwrite *x, void *b, long msg, long arg, char *dst)
 }
 
 
-void yarpwrite_bang(t_yarpwrite *x)
+void yarp_bang(t_yarp *x)
 {
 	numberIterator iter, begin, end;
 	int i = 0;
@@ -232,7 +257,7 @@ void yarpwrite_bang(t_yarpwrite *x)
 		systhread_mutex_unlock(x->c_mutex);	// must unlock before calling _clear() or we will deadlock
 
 		DPOST("about to clear\n", ac);
-		yarpwrite_clear(x);
+		yarp_clear(x);
 
 		DPOST("about to outlet\n", ac);
 		outlet_anything(x->c_outlet, _sym_list, ac, av); // don't want to call outlets in mutexes either
@@ -245,29 +270,38 @@ void yarpwrite_bang(t_yarpwrite *x)
 }
 
 
-void yarpwrite_count(t_yarpwrite *x)
+void yarp_count(t_yarp *x)
 {
 	outlet_int(x->c_outlet, x->c_vector->size());
 }
 
-
-void yarpwrite_int(t_yarpwrite *x, long value)
+//sets up yarp reader with port name
+void yarp_read(t_yarp *x, symbol *s)
 {
-	yarpwrite_float(x, value);
-	post("int val = %ld", (long)value);
-
-	char name[32];
-	sprintf(name, "/max_port_%ld",value);
-
+	poststring("yarp read!");
+	post(s->s_name);
 	if (!x->port->isClosed())
 		x->port->close();
-	x->port->open(name);
+		
+	if (checkAddr(s->s_name))
+		x->port->open(s->s_name);
 
+	//just pass the input directly out
+	t_atom* argv = NULL;
+	argv = new t_atom();
+	atom_setsym(argv, s);
+	outlet_anything(x->c_outlet, gensym("output"), 1, argv);
+	delete argv;
+}
 
+void yarp_int(t_yarp *x, long value)
+{
+	yarp_float(x, value);
+	post("int val = %ld", (long)value);
 }
 
 
-void yarpwrite_float(t_yarpwrite *x, double value)
+void yarp_float(t_yarp *x, double value)
 {
 	systhread_mutex_lock(x->c_mutex);
 	x->c_vector->push_back(value);
@@ -275,21 +309,35 @@ void yarpwrite_float(t_yarpwrite *x, double value)
 }
 
 
-void yarpwrite_list(t_yarpwrite *x, t_symbol *msg, long argc, t_atom *argv)
+void yarp_list(t_yarp *x, t_symbol *msg, long argc, t_atom *argv)
 {
-	systhread_mutex_lock(x->c_mutex);
+
+	char str[32];
+	sprintf(str, "num= %ld",argc);
+	poststring(str);
+
+	/*systhread_mutex_lock(x->c_mutex);
 	for (int i=0; i<argc; i++) {
 		double value = atom_getfloat(argv+i);
 		x->c_vector->push_back(value);
 	}
-	systhread_mutex_unlock(x->c_mutex);
+	systhread_mutex_unlock(x->c_mutex);*/
 }
 
 
-void yarpwrite_clear(t_yarpwrite *x)
+void yarp_clear(t_yarp *x)
 {
 	systhread_mutex_lock(x->c_mutex);
 	x->c_vector->clear();
 	systhread_mutex_unlock(x->c_mutex);
 }
 
+bool checkAddr(char* addr) {
+	if (addr[0] != '/') {
+		error("port name must start with '/'");
+		return false;
+	}
+	else {
+		return true;
+	}
+}
