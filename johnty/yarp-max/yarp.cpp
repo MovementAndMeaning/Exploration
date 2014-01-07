@@ -71,6 +71,7 @@ typedef struct _yarp {
 	t_object			c_box;
 	numberVector		*c_vector;	// note: you must store this as a pointer and not directly as a member of the object's struct
 	void				*c_outlet;
+	void				*c_inlet;
 	t_systhread_mutex	c_mutex;
 	yarp::os::Network *yarp;
 	yarp::os::BufferedPort<yarp::os::Bottle> *port;
@@ -90,6 +91,7 @@ void	yarp_list(t_yarp *x, t_symbol *msg, long argc, t_atom *argv);
 void	yarp_clear(t_yarp *x);
 
 void	yarp_read(t_yarp *x, symbol *s);
+void	yarp_readbang(t_yarp *x);
 
 // yarp init
 
@@ -123,7 +125,7 @@ int T_EXPORT main(void)
 	class_addmethod(c, (method)yarp_count,	"count",		0);
 	class_addmethod(c, (method)yarp_assist, "assist",		A_CANT, 0);
 	class_addmethod(c, (method)yarp_read,   "read",			A_SYM, 0);
-	
+	class_addmethod(c, (method)yarp_readbang, "bang",		0);
 	class_addmethod(c, (method)stdinletinfo,	"inletinfo",	A_CANT, 0);
 	
 	class_register(_sym_box, c);
@@ -149,6 +151,7 @@ void *yarp_new(t_symbol *s, long argc, t_atom *argv)
 	if (x) {
 		systhread_mutex_new(&x->c_mutex, 0);
 		x->c_outlet = outlet_new(x, NULL);
+		x->c_inlet = inlet_new(x, "bang");
 		x->c_vector = new numberVector;
 		x->c_vector->reserve(10);
 		//yarp_list(x, _sym_list, argc, argv);
@@ -324,6 +327,23 @@ void yarp_list(t_yarp *x, t_symbol *msg, long argc, t_atom *argv)
 	systhread_mutex_unlock(x->c_mutex);*/
 }
 
+void yarp_readbang(t_yarp *x)
+{
+	//post("metro bang!");
+	if (x->port->getPendingReads()) {
+		post("   read:");
+		yarp::os::Bottle *input = x->port->read();
+		if (input != NULL) {
+			t_atom* argv = new t_atom();
+			atom_setsym(argv, gensym(input->toString().c_str()));
+			outlet_anything(x->c_outlet, gensym("read"), 1, argv);
+			delete argv;
+		
+		}
+	}
+
+}
+
 
 void yarp_clear(t_yarp *x)
 {
@@ -332,7 +352,8 @@ void yarp_clear(t_yarp *x)
 	systhread_mutex_unlock(x->c_mutex);
 }
 
-bool checkAddr(char* addr) {
+bool checkAddr(char* addr) 
+{
 	if (addr[0] != '/') {
 		error("port name must start with '/'");
 		return false;
