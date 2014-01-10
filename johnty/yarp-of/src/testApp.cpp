@@ -1,4 +1,5 @@
 #include "testApp.h"
+//using namespace yarp::os;
 
 string name;
 string printLine;
@@ -15,7 +16,7 @@ void testApp::setup(){
 void testApp::update(){
 	if (port.getPendingReads()) {
 		printf("port read!\n");
-		Bottle *input = port.read();
+		yarp::os::Bottle *input = port.read();
 		printLine+=input->toString()+"\n";
 	}
 }
