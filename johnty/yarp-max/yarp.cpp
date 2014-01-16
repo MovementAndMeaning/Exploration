@@ -93,6 +93,7 @@ void	yarp_list(t_yarp *x, t_symbol *msg, long argc, t_atom *argv);
 void	yarp_clear(t_yarp *x);
 void	yarp_read(t_yarp *x, symbol *s);
 void	yarp_readbang(t_yarp *x);
+void	yarp_poll(t_yarp *x, long value);
 
 void	yarp_start_readthread(t_yarp *x, symbol *s);
 void	*yarp_readthread(t_yarp *x);
@@ -130,7 +131,8 @@ int T_EXPORT main(void)
 	class_addmethod(c, (method)yarp_count,	"count",		0);
 	class_addmethod(c, (method)yarp_assist, "assist",		A_CANT, 0);
 	class_addmethod(c, (method)yarp_read,   "read",			A_SYM, 0);
-	class_addmethod(c, (method)yarp_readbang, "bang",		0);
+	class_addmethod(c, (method)yarp_poll,	"poll",			A_LONG,	0);
+
 	class_addmethod(c, (method)stdinletinfo,	"inletinfo",	A_CANT, 0);
 	
 	class_register(_sym_box, c);
@@ -266,8 +268,10 @@ void *yarp_readthread(t_yarp *x)
 	while (1) {
 		if (x->x_stop_thread)
 			break;
+		systhread_mutex_lock(x->x_mutex);
 		systhread_sleep(x->x_polltime_ms);
-		post("thread proc fn!");
+		systhread_mutex_unlock(x->x_mutex);
+		//post("thread proc fn!");
 		//todo: add read processing here
 
 		if (x->port->getPendingReads()) {
@@ -300,6 +304,19 @@ void yarp_int(t_yarp *x, long value)
 {
 	yarp_float(x, value);
 	post("int val = %ld", (long)value);
+}
+
+void yarp_poll(t_yarp *x, long value)
+{
+	if (value < 10) {
+		post("error! min poll time is 10 ms!");
+	}
+	else {
+		post("poll time changed to %ld ms", (long)value);
+		systhread_mutex_lock(x->x_mutex);
+		x->x_polltime_ms = value;
+		systhread_mutex_unlock(x->x_mutex);
+	}
 }
 
 
