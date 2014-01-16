@@ -4,7 +4,7 @@
 			- based on collect example: collectsnumbers and operate on them.
 			- demonstrates use of C++ and the STL in a Max external
 			- also demonstrates use of a mutex for thread safety
-			- on Windows, demonstrate project setup for static linking to the Microsoft Runtime
+			- demonstrate project setup for static linking to the Microsoft Runtime
 
 	@ingroup	examples
 
@@ -69,9 +69,12 @@ typedef numberVector::iterator	numberIterator;
 // max object instance data
 typedef struct _yarp {
 	t_object			c_box;
-	numberVector		*c_vector;	// note: you must store this as a pointer and not directly as a member of the object's struct
+	t_systhread			x_systhread;
+	t_systhread_mutex	x_mutex;
+	int					x_polltime_ms;
+	bool				x_stop_thread;
 	void				*c_outlet;
-	t_systhread_mutex	c_mutex;
+
 	yarp::os::Network *yarp;
 	yarp::os::BufferedPort<yarp::os::Bottle> *port;
 } t_yarp;
@@ -88,8 +91,11 @@ void	yarp_int(t_yarp *x, long value);
 void	yarp_float(t_yarp *x, double value);
 void	yarp_list(t_yarp *x, t_symbol *msg, long argc, t_atom *argv);
 void	yarp_clear(t_yarp *x);
-
 void	yarp_read(t_yarp *x, symbol *s);
+
+void	yarp_start_readthread(t_yarp *x, symbol *s);
+void	*yarp_readthread(t_yarp *x);
+void	yarp_readthread_stop(t_yarp *x);
 
 // yarp init
 
@@ -147,46 +153,29 @@ void *yarp_new(t_symbol *s, long argc, t_atom *argv)
 
 	x = (t_yarp*)object_alloc(s_yarp_class);
 	if (x) {
-		systhread_mutex_new(&x->c_mutex, 0);
+		
+		systhread_mutex_new(&x->x_mutex, 0);
+		x->x_polltime_ms = 500; //poll every ms by default
 		x->c_outlet = outlet_new(x, NULL);
-		x->c_vector = new numberVector;
-		x->c_vector->reserve(10);
-		//yarp_list(x, _sym_list, argc, argv);
+		x->x_stop_thread = true; //default: no thread running
+		
 	}
 
 	init_yarp(x);
+	bool port_success = false;
 	if (argc==2) {
 		if (strcmp("read", atom_getsym(argv)->s_name) == 0) {
 			char str[32];
 			sprintf(str, "%s", atom_getsym(argv+1)->s_name);
-			post("reader addr = %s",str);
-			if (checkAddr(str))
-				x->port->open(str);
+			post("init reader address = %s",str);
+			yarp_read(x, atom_getsym(argv+1));
 		}
 	}
 	else {
-		x->port->open("/hello_max");
+		yarp_read(x, gensym("/readMax"));
 	}
 	return(x);
 }
-
-//void *yarp_new(t_symbol* s) {
-//	poststring("new yarp with parameter!\n");
-//	poststring(s->s_name);
-//	t_yarp	*x;
-//
-//	x = (t_yarp*)object_alloc(s_yarp_class);
-//	if (x) {
-//		systhread_mutex_new(&x->c_mutex, 0);
-//		x->c_outlet = outlet_new(x, NULL);
-//		x->c_vector = new numberVector;
-//		x->c_vector->reserve(10);
-//		//yarp_list(x, _sym_list, argc, argv);
-//	}
-//	init_yarp(x);
-//	x->port->open(s->s_name);
-//	return(x);
-//}
 
 void init_yarp(t_yarp	*x) {
 	x->yarp = new yarp::os::Network();
@@ -197,10 +186,13 @@ void init_yarp(t_yarp	*x) {
 void yarp_free(t_yarp *x)
 {
 	x->port->close();
+
+	yarp_readthread_stop(x);
+
 	delete x->port;
 	delete x->yarp;
-	systhread_mutex_free(x->c_mutex);
-	delete x->c_vector;
+	
+	systhread_mutex_free(x->x_mutex);
 }
 
 
@@ -218,80 +210,89 @@ void yarp_assist(t_yarp *x, void *b, long msg, long arg, char *dst)
 
 void yarp_bang(t_yarp *x)
 {
-	numberIterator iter, begin, end;
-	int i = 0;
-	long ac = 0;
-	t_atom *av = NULL;
-	double value;
-
-	DPOST("head\n");
-	systhread_mutex_lock(x->c_mutex);
-	ac = x->c_vector->size();
-
-	DPOST("ac=%ld\n", ac);
-	if (ac)
-		av = new t_atom[ac];
-
-	if (ac && av) {
-		DPOST("assigning begin and end\n");
-		begin = x->c_vector->begin();
-		end = x->c_vector->end();
-
-		DPOST("assigning iter\n");
-		iter = begin;
-
-		DPOST("entering for\n", ac);
-		for (;;) {
-			DPOST("i=%i\n", i);
-			(*iter).getValue(value);
-			atom_setfloat(av+i, value);
-
-			DPOST("incrementing\n");
-			i++;
-			iter++;
-
-			DPOST("comparing\n");
-			if (iter == end)
-				break;
-		}
-		systhread_mutex_unlock(x->c_mutex);	// must unlock before calling _clear() or we will deadlock
-
-		DPOST("about to clear\n", ac);
-		yarp_clear(x);
-
-		DPOST("about to outlet\n", ac);
-		outlet_anything(x->c_outlet, _sym_list, ac, av); // don't want to call outlets in mutexes either
-
-		DPOST("about to delete\n", ac);
-		delete[] av;
-	}
-	else
-		systhread_mutex_unlock(x->c_mutex);
 }
 
 
 void yarp_count(t_yarp *x)
 {
-	outlet_int(x->c_outlet, x->c_vector->size());
+	
 }
 
-//sets up yarp reader with port name
+//sets read message from patch: (re)set up read port, and initiate read thread
 void yarp_read(t_yarp *x, symbol *s)
 {
-	poststring("yarp read!");
+	poststring("yarp read init. port name is:");
 	post(s->s_name);
+
+
+	//if thread currently running, stop it
+	if (x->x_stop_thread == false) {
+		yarp_readthread_stop(x);
+	}
+
+	bool port_success = false;
+	if (checkAddr(s->s_name)) {
+		port_success = x->port->open(s->s_name);
+	}
+	//first close port if currently open.
 	if (!x->port->isClosed())
-		x->port->close();
-		
+		x->port->close();	
 	if (checkAddr(s->s_name))
 		x->port->open(s->s_name);
 
-	//just pass the input directly out
+	if (port_success) {
+		post("successfully opened port! starting read thread...");
+		x->x_stop_thread = false; //set flag to get thread going
+		systhread_create((method) yarp_readthread, x, 0, 0, 0, &x->x_systhread);
+	}
+
+	//testing: just pass the input directly out
 	t_atom* argv = NULL;
 	argv = new t_atom();
 	atom_setsym(argv, s);
 	outlet_anything(x->c_outlet, gensym("output"), 1, argv);
 	delete argv;
+}
+
+void yarp_start_readthread(t_yarp *x, symbol *s) {
+
+}
+
+//start read thread
+
+void *yarp_readthread(t_yarp *x) 
+{
+	while (1) {
+		if (x->x_stop_thread)
+			break;
+		systhread_sleep(x->x_polltime_ms);
+		post("thread proc fn!");
+		//todo: add read processing here
+
+		if (x->port->getPendingReads()) {
+            post("   read:");
+            yarp::os::Bottle *input = x->port->read();
+            if (input != NULL) {
+                t_atom* argv = new t_atom();
+                atom_setsym(argv, gensym(input->toString().c_str()));
+                outlet_anything(x->c_outlet, gensym("read"), 1, argv);
+                delete argv;
+            }
+        }
+	}
+	systhread_exit(0);
+	return NULL;
+}
+
+void yarp_readthread_stop(t_yarp *x)
+{
+	unsigned int ret;
+	if (x->x_systhread) {
+		post("stopping read thread");
+		x->x_stop_thread = true;
+		systhread_join(x->x_systhread, &ret);
+		x->x_systhread = NULL;
+	}
 }
 
 void yarp_int(t_yarp *x, long value)
@@ -303,9 +304,7 @@ void yarp_int(t_yarp *x, long value)
 
 void yarp_float(t_yarp *x, double value)
 {
-	systhread_mutex_lock(x->c_mutex);
-	x->c_vector->push_back(value);
-	systhread_mutex_unlock(x->c_mutex);
+
 }
 
 
@@ -327,9 +326,7 @@ void yarp_list(t_yarp *x, t_symbol *msg, long argc, t_atom *argv)
 
 void yarp_clear(t_yarp *x)
 {
-	systhread_mutex_lock(x->c_mutex);
-	x->c_vector->clear();
-	systhread_mutex_unlock(x->c_mutex);
+
 }
 
 bool checkAddr(char* addr) {
