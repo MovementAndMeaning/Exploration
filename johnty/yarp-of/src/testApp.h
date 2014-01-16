@@ -1,8 +1,8 @@
 #pragma once
 
 #include "ofMain.h"
-#include <yarp/os/all.h>
-
+#undef check //needed for OSX oF integration
+#include "yarp/os/all.h"
 using namespace yarp::os;
 
 class testApp : public ofBaseApp{
@@ -23,6 +23,6 @@ class testApp : public ofBaseApp{
 
 		//yarp specific:
 
-		Network yarp;
+        Network yarp;
 		BufferedPort<Bottle> port;
 };

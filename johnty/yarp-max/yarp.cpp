@@ -92,6 +92,7 @@ void	yarp_float(t_yarp *x, double value);
 void	yarp_list(t_yarp *x, t_symbol *msg, long argc, t_atom *argv);
 void	yarp_clear(t_yarp *x);
 void	yarp_read(t_yarp *x, symbol *s);
+void	yarp_readbang(t_yarp *x);
 
 void	yarp_start_readthread(t_yarp *x, symbol *s);
 void	*yarp_readthread(t_yarp *x);
@@ -129,7 +130,7 @@ int T_EXPORT main(void)
 	class_addmethod(c, (method)yarp_count,	"count",		0);
 	class_addmethod(c, (method)yarp_assist, "assist",		A_CANT, 0);
 	class_addmethod(c, (method)yarp_read,   "read",			A_SYM, 0);
-	
+	class_addmethod(c, (method)yarp_readbang, "bang",		0);
 	class_addmethod(c, (method)stdinletinfo,	"inletinfo",	A_CANT, 0);
 	
 	class_register(_sym_box, c);
