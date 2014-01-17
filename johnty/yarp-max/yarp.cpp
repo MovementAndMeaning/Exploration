@@ -15,6 +15,8 @@
 	Johnty Wang -  johntywang@gmail.com
 */
 
+#undef check
+
 #include "ext.h"
 #include "ext_obex.h"
 #include "ext_strings.h"
@@ -40,6 +42,7 @@ using namespace std;
 #else // MAC_VERSION
 	// the mac uses the standard gcc syntax, you should also set the -fvisibility=hidden flag to hide the non-marked symbols
 	#define T_EXPORT __attribute__((visibility("default")))
+
 #endif
 
 // a c++ class representing a number, and types for a vector of those numbers
