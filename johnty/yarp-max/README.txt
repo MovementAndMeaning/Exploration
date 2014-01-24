@@ -4,10 +4,18 @@ expects ACE_ROOT and YARP_DIR to be defined;
 expects YARP libs to be compiled as static libraries
 expects ACE(d).dll dynamic library in runtime path of Max/Msp
 
+Use with MAX 5 SDK (should work in MAX 6 SDK too; but compiles in 32bit only).
+
 most likely won't work "out of the box" - this is just a backup version
 
-currently only registers ports; doesn't do much else.
+currently performs the following:
 
-xcode project not tested - will need the lib dependencies to be added (and most likely other things as well)!
+- register/change port name (using message or object initialization in Max)
+- select as "reader" or "writer"
+- for "reader, uses thread to check port
+- adjustable poll time for read thread
+- writes to port.
 
-compiled with VS2012, 32bit.
+xcode project tested and should work as well.
+
+compiled with VS2012, 32bit; XCode 5.0, 32bit
